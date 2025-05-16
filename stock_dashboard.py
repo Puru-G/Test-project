@@ -136,6 +136,7 @@ def run_app():
             X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
             
             # Load or create model
+            # Inside the "Run Prediction Model" button click handler:
             try:
                 model = load_model('stock_model.keras')
                 st.success("Loaded pre-trained model.")
@@ -143,6 +144,11 @@ def run_app():
                 st.info("Training new model...")
                 from keras.models import Sequential
                 from keras.layers import LSTM, Dense
+                import time
+                
+                # Create a progress placeholder
+                progress_text = st.empty()
+                progress_bar = st.progress(0)
                 
                 model = Sequential()
                 model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], 1)))
@@ -150,8 +156,55 @@ def run_app():
                 model.add(Dense(units=25))
                 model.add(Dense(units=1))
                 model.compile(optimizer='adam', loss='mean_squared_error')
-                model.fit(X_train, y_train, batch_size=30, epochs=50, verbose=0)
-            
+                
+                # Custom callback to log progress
+                from keras.callbacks import Callback
+                
+                class TrainingProgressCallback(Callback):
+                    def __init__(self, epochs):
+                        self.epochs = epochs
+                        self.start_time = time.time()
+                    
+                    def on_epoch_begin(self, epoch, logs=None):
+                        progress_text.text(f"Training model: Epoch {epoch+1}/{self.epochs}")
+                        progress = float((epoch) / self.epochs)
+                        progress_bar.progress(progress)
+                    
+                    def on_epoch_end(self, epoch, logs=None):
+                        elapsed_time = time.time() - self.start_time
+                        time_per_epoch = elapsed_time / (epoch + 1)
+                        remaining_epochs = self.epochs - (epoch + 1)
+                        est_time_remaining = remaining_epochs * time_per_epoch
+                        
+                        progress_text.text(f"Training model: Epoch {epoch+1}/{self.epochs} - " 
+                                        f"Loss: {logs['loss']:.4f} - "
+                                        f"Est. time remaining: {est_time_remaining:.1f}s")
+                        progress = float((epoch + 1) / self.epochs)
+                        progress_bar.progress(progress)
+                
+                # Define epochs here so we can reference it in the callback
+                epochs = 100
+                batch_size = 30
+                
+                # Train the model with the callback
+                model.fit(
+                    X_train, 
+                    y_train, 
+                    batch_size=batch_size, 
+                    epochs=epochs, 
+                    verbose=0,
+                    callbacks=[TrainingProgressCallback(epochs)]
+                )
+                
+                # Save the model
+                model.save('stock_model.keras')
+                model.summary()
+                
+                # Clear the progress bar and display success message
+                progress_bar.empty()
+                progress_text.empty()
+                st.success("Model trained and saved.")
+                            
             # Evaluate model on training data
             test_data = scaled_data[len(scaled_data) - len(y_train) - timesteps:]
             
