@@ -2,14 +2,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import load_model
 import datetime
 import plotly.graph_objects as go
 import plotly.express as px
-from PIL import Image
 
 # Set page config
 st.set_page_config(page_title="Stock Price Prediction Dashboard", layout="wide")
@@ -44,8 +42,12 @@ def fetch_stock_data(ticker, start_date, end_date):
         if data.empty:
             st.error(f"No data found for {ticker}. Please check the ticker symbol. Showing default data for NVDA stock.")
             data = pd.read_csv('NVDA_stock_data.csv')
-            
-        data.reset_index(inplace=True)
+            # For CSV, Date is already a column, no need to reset_index
+        else:
+            data.reset_index(inplace=True)
+            # Flatten MultiIndex columns if present
+            if data.columns.nlevels > 1:
+                data.columns = data.columns.droplevel(1)
         return data
     except Exception as e:
         st.error(f"Error fetching data for {ticker}: {e}")
